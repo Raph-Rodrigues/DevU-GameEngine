@@ -10,6 +10,7 @@
 // construtor de Application executar — cedo demais. Guardando como
 // ponteiro (unique_ptr), a gente decide o momento exato de criá-los,
 // dentro de init().
+#include <SDL3/SDL_stdinc.h>
 #include <memory>
 #include <string>
 
@@ -59,8 +60,27 @@ protected:
   // é fixo (~16ms via SDL_Delay); a assinatura já fica pronta pra
   // quando isso virar delta-time real.
   virtual void onUpdate(float deltaSeconds) { (void)deltaSeconds; }
-  // Chamado uma vez por frame, depois do clear e antes do present.
+  // Chamado uma vez por frame, antes do present. A engine já limpa a
+  // tela de preto automaticamente ANTES de chamar onDraw (ver
+  // Application::run()) — se o jogo não fizer nada aqui, o fundo
+  // continua preto. Pra outra cor, chame clearBackground() como
+  // primeira linha de onDraw e depois desenhe suas entidades por cima.
   virtual void onDraw() {}
+
+  // Troca a cor do "pincel" do renderer e já limpa a tela inteira com
+  // ela — é a forma recomendada de pintar o fundo do frame com uma
+  // cor diferente do preto padrão da engine. Chame isso no início do
+  // seu onDraw(), antes de desenhar qualquer entidade, senão o
+  // desenho anterior fica embaixo da cor nova. Se você NUNCA chamar
+  // essa função, o fundo continua preto — é o clear automático que
+  // Application::run() já faz antes de onDraw.
+  // r/g/b/a vão de 0 a 255 (a=255 é opaco); default a=255.
+  void clearBackground(Uint8 r, Uint8 g, Uint8 b, Uint8 a = 255) {
+    if (renderer_) {
+      renderer_->setDrawColor(r, g, b, a);
+      renderer_->clear();
+    }
+  }
 
   // Dá acesso ao SDL_Renderer* cru pra quem herdar de Application e
   // precisar desenhar algo dentro de onDraw() (ex: SDL_RenderRect,

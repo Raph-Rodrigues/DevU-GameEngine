@@ -6,6 +6,7 @@
 // pasta que Window.hpp (engine/include/devu/core/), o compilador acha.
 #include "Window.hpp"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_stdinc.h>
 #include <string>
 
 namespace devu {
@@ -41,6 +42,20 @@ public:
   // "direct3d11", "opengl"...). Útil pra log/debug, pra confirmar que a
   // preferência de pickPreferredDriver() foi respeitada.
   std::string activeDriveName() const;
+
+  // Troca a cor do "pincel" atual do renderer (a cor usada pelas
+  // próximas chamadas de desenho, incluindo clear()). r/g/b/a vão de
+  // 0 a 255; a=255 é totalmente opaco. Uint8 é o próprio typedef do
+  // SDL pra "byte sem sinal", então bate exatamente com o que
+  // SDL_SetRenderDrawColor espera.
+
+  void setDrawColor(Uint8 r, Uint8 g, Uint8 b, Uint8 a = 255);
+
+  // Preenche a tela inteira com a cor do pincel atual (a última que
+  // foi passada pra setDrawColor). Precisa ser chamado UMA VEZ por
+  // frame, antes de desenhar qualquer outra coisa — senão o desenho
+  // do frame anterior continua visível por baixo.
+  void clear();
 
 private:
   // Função auxiliar interna (não faz parte da API pública da classe):

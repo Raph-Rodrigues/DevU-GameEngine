@@ -125,14 +125,19 @@ int Application::run() {
     // anterior).
     onUpdate(0.016f);
 
-    // Limpa a tela inteira com uma cor sólida antes de desenhar o
-    // frame atual. Sem isso, o desenho do frame anterior "vazaria"
-    // pro próximo.
-    SDL_SetRenderDrawColor(rendererHandle(), 0, 0, 0, 255); // preto opaco
-    SDL_RenderClear(rendererHandle());
+    // A engine SEMPRE limpa a tela de preto antes de chamar onDraw —
+    // esse é o comportamento padrão, igual já era antes de
+    // clearBackground() existir. Se o jogo não fizer nada em onDraw(),
+    // o fundo continua preto.
+    clearBackground(0, 0, 0, 255);
 
-    // Hook pra o jogo desenhar suas próprias entidades/sprites, entre
-    // o clear e o present.
+    // Hook pra o jogo desenhar o frame atual. Se o jogo quiser um
+    // fundo de outra cor, é só chamar clearBackground(r, g, b) de novo
+    // aqui dentro (normalmente como a primeira linha) — essa segunda
+    // chamada substitui o preto que acabamos de aplicar acima. Chamar
+    // duas vezes por frame (uma aqui, outra dentro de onDraw) tem um
+    // custo desprezível: SDL_RenderClear é uma operação bem barata.
+
     onDraw();
 
     // "Apresenta" o frame: troca o buffer que acabamos de desenhar

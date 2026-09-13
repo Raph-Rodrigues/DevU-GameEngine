@@ -1,6 +1,8 @@
 #include "devu/core/Renderer.hpp"
 #include "devu/core/Window.hpp"
 
+#include <SDL3/SDL_render.h>
+#include <SDL3/SDL_stdinc.h>
 #include <algorithm> // std::find
 #include <cstdio>    // std::printf
 #include <string>
@@ -93,4 +95,21 @@ std::string Renderer::activeDriveName() const {
   return SDL_GetStringProperty(props, SDL_PROP_RENDERER_NAME_STRING,
                                "Desconhecido");
 }
+
+// Só repassa os quatro valores pro SDL — é a mesma chamada que antes
+// estava espalhada direto dentro de Application::run() (e, antes
+// disso, direto no main.cpp original).
+
+void Renderer::setDrawColor(Uint8 r, Uint8 g, Uint8 b, Uint8 a) {
+  SDL_SetRenderDrawColor(renderer_, r, g, b, a);
+}
+
+// Preenche toda a área de desenho com a cor definida pela última
+// chamada a setDrawColor(). Se ninguém tiver chamado setDrawColor()
+// ainda, usa a cor default do próprio SDL, que é BRANCO opaco (não
+// preto!) — por isso Application::run() sempre chama
+// clearBackground(0, 0, 0, 255) automaticamente antes de onDraw: sem
+// isso, o "preto padrão da engine" na verdade apareceria branco.
+
+void Renderer::clear() { SDL_RenderClear(renderer_); }
 } // namespace devu
