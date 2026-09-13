@@ -13,23 +13,22 @@ find_package(SDL3 REQUIRED CONFIG)
 # não têm .cpp). Quando isso mudar, basta descomentar o bloco abaixo e
 # linkar "devu-engine" no lugar de só incluir o diretório de headers.
 #
-# add_library(devu-engine STATIC
-#     engine/src/core/Window.cpp
-# )
-# target_include_directories(devu-engine PUBLIC engine/include)
-# target_link_libraries(devu-engine PUBLIC SDL3::SDL3)
+add_library(devu-engine STATIC
+    engine/src/core/Window.cpp
+    engine/src/core/Renderer.cpp
+    engine/src/core/Application.cpp
+)
+target_include_directories(devu-engine PUBLIC engine/include)
+target_link_libraries(devu-engine PUBLIC SDL3::SDL3)
 # --------------------------------------------------------------------------
 
 add_executable(the-hunter
     games/the-hunter/src/main.cpp
 )
 
-target_include_directories(the-hunter PRIVATE
-    engine/include
-)
 
 target_link_libraries(the-hunter PRIVATE
-    SDL3::SDL3
+    devu-engine
 )
 
 set_target_properties(the-hunter PROPERTIES
