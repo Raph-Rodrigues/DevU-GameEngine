@@ -2,6 +2,7 @@
 
 #include "devu/core/Renderer.hpp"
 #include "devu/core/Window.hpp"
+#include "devu/core/Color.hpp"
 
 #include <SDL3/SDL.h>
 // unique_ptr: Window e Renderer só podem ser construídos DEPOIS de
@@ -50,22 +51,30 @@ public:
   int run();
 
 protected:
-  // "protected" porque só as subclasses (os jogos) devem chamar/
-  // sobrescrever esses métodos — código de fora da hierarquia de
-  // Application não deveria mexer neles diretamente.
+    // "protected" porque só as subclasses (os jogos) devem chamar/
+    // sobrescrever esses métodos — código de fora da hierarquia de
+    // Application não deveria mexer neles diretamente.
 
-  // Chamado uma vez, antes do primeiro frame.
-  virtual void onLoad() {}
-  // Chamado uma vez por frame, antes do clear/draw. deltaSeconds ainda
-  // é fixo (~16ms via SDL_Delay); a assinatura já fica pronta pra
-  // quando isso virar delta-time real.
-  virtual void onUpdate(float deltaSeconds) { (void)deltaSeconds; }
-  // Chamado uma vez por frame, antes do present. A engine já limpa a
-  // tela de preto automaticamente ANTES de chamar onDraw (ver
-  // Application::run()) — se o jogo não fizer nada aqui, o fundo
-  // continua preto. Pra outra cor, chame clearBackground() como
-  // primeira linha de onDraw e depois desenhe suas entidades por cima.
-  virtual void onDraw() {}
+    // Chamado uma vez, antes do primeiro frame.
+    virtual void onLoad() {}
+    // Chamado uma vez por frame, antes do clear/draw. deltaSeconds ainda
+    // é fixo (~16ms via SDL_Delay); a assinatura já fica pronta pra
+    // quando isso virar delta-time real.
+    virtual void onUpdate(float deltaSeconds) { (void)deltaSeconds; }
+    // Chamado uma vez por frame, antes do present. A engine já limpa a
+    // tela de preto automaticamente ANTES de chamar onDraw (ver
+    // Application::run()) — se o jogo não fizer nada aqui, o fundo
+    // continua preto. Pra outra cor, chame clearBackground() como
+    // primeira linha de onDraw e depois desenhe suas entidades por cima.
+    virtual void onDraw() {}
+
+    // Desenha um retângulo contornado na posição (x, y) com largura w e altura h.
+    // A cor padrão é branca.
+    void drawRectangle(int x, int y, int w, int h, const Color& color = Color());
+
+    // Desenha um círculo contornado na posição (x, y) com o raio especificado.
+    // A cor padrão é branca. Usa aproximação de polígono (Algoritmo de Arquimedes).
+    void drawCircle(int x, int y, int radius, const Color& color = Color());
 
   // Troca a cor do "pincel" do renderer e já limpa a tela inteira com
   // ela — é a forma recomendada de pintar o fundo do frame com uma

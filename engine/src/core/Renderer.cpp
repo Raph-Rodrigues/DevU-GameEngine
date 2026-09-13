@@ -1,5 +1,6 @@
 #include "devu/core/Renderer.hpp"
 #include "devu/core/Window.hpp"
+#include "devu/core/Color.hpp"
 
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_stdinc.h>
@@ -7,6 +8,7 @@
 #include <cstdio>    // std::printf
 #include <string>
 #include <vector>
+#include <cmath>
 
 namespace devu {
 
@@ -112,4 +114,56 @@ void Renderer::setDrawColor(Uint8 r, Uint8 g, Uint8 b, Uint8 a) {
 // isso, o "preto padrão da engine" na verdade apareceria branco.
 
 void Renderer::clear() { SDL_RenderClear(renderer_); }
+
+void Renderer::drawRectangle(int x, int y, int w, int h, const Color& color) {
+    // Preenche um retângulo na posição (x, y) com largura w e altura h.
+    // Usa SDL_FRect para precisão de ponto flutuante e SDL_RenderFillRect para preenchimento.
+    setDrawColor(color.r, color.g, color.b, color.a);
+    SDL_FRect rect{ static_cast<float>(x), static_cast<float>(y), static_cast<float>(w), static_cast<float>(h) };
+    SDL_RenderFillRect(renderer_, &rect);
+}
+
+void Renderer::drawCircle(int x, int y, int radius, const Color& color) {
+    // Desenha um círculo preenchido na posição (x, y) com o raio especificado.
+    // Aproximamos o círculo usando um "triangle fan" (ventilador de triângulos) a partir do centro.
+    // Isso é semelhante ao método de Arquimedes de aproximar uma circunferência com polígonos,
+    // mas aqui preenchemos a área dividindo o círculo em triângulos com um vértice comum no centro.
+    setDrawColor(color.r, color.g, color.b, color.a);
+    const int num_segments = 32; // Número de segmentos para aproximar o círculo (quanto maior, mais suave)
+    
+    // Preparar os vértices para o triangle fan:
+    // - Primeiro vértice é o centro do círculo
+    // - Os vértices subsequentes são pontos ao longo da circunferência
+    std::vector<SDL_Vertex> vertices;
+    vertices.reserve(num_segments + 1); // centro + num_segments pontos da circunferência
+    
+    // Vértice central (cores normalizadas para 0.0-1.0)
+    vertices.push_back({{ static_cast<float>(x), static_cast<float>(y) },
+                        { color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f },
+                        { 0.0f, 0.0f }}); // coordenadas de textura não usadas
+    
+    // Vértices da circunferência
+    for (int i = 0; i <= num_segments; ++i) { // inclui o último ponto para fechar o círculo
+        float theta = 2.0f * M_PI * static_cast<float>(i) / static_cast<float>(num_segments);
+        float vx = static_cast<float>(x) + radius * cosf(theta);
+        float vy = static_cast<float>(y) + radius * sinf(theta);
+        vertices.push_back({{ vx, vy },
+                            { color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f },
+                            { 0.0f, 0.0f }});
+    }
+    
+    // Preparar os índices para formar os triângulos do triangle fan
+    // Cada triângulo é formado por: centro, ponto[i], ponto[i+1]
+    std::vector<int> indices;
+    indices.reserve(num_segments * 3);
+    for (int i = 0; i < num_segments; ++i) {
+        indices.push_back(0);           // vértice do centro
+        indices.push_back(i + 1);       // ponto atual na circunferência
+        indices.push_back(i + 2);       // próximo ponto na circunferência
+    }
+    
+    // Renderizar o círculo preenchido usando geometria personalizada
+    SDL_RenderGeometry(renderer_, nullptr, vertices.data(), static_cast<int>(vertices.size()),
+                       indices.data(), static_cast<int>(indices.size()));
+}
 } // namespace devu

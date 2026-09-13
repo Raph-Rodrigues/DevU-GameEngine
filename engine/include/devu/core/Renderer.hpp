@@ -5,6 +5,7 @@
 // próprio arquivo que está incluindo — como Renderer.hpp mora na mesma
 // pasta que Window.hpp (engine/include/devu/core/), o compilador acha.
 #include "Window.hpp"
+#include "Color.hpp"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_stdinc.h>
 #include <string>
@@ -56,6 +57,14 @@ public:
   // frame, antes de desenhar qualquer outra coisa — senão o desenho
   // do frame anterior continua visível por baixo.
   void clear();
+
+  // Desenha um retângulo contornado na posição (x, y) com largura w e altura h.
+  // A cor padrão é branca.
+  void drawRectangle(int x, int y, int w, int h, const Color& color = Color());
+
+  // Desenha um círculo contornado na posição (x, y) com o raio especificado.
+  // A cor padrão é branca. Usa aproximação de polígono (Algoritmo de Arquimedes).
+  void drawCircle(int x, int y, int radius, const Color& color = Color());
 
 private:
   // Função auxiliar interna (não faz parte da API pública da classe):
