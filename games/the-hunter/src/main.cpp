@@ -1,9 +1,9 @@
 // Único header da engine que o jogo precisa incluir diretamente — tudo
 // que o jogo faz é através da API pública de Application (onLoad/
-// onUpdate/onDraw/run). Nada de SDL3.h nem Window/Renderer aqui: esses
-// são detalhes internos da engine que o jogo não precisa conhecer.
+// onUpdate/onDraw/run, clearBackground/drawRectangle/drawCircle) e do
+// tipo Color. Nada de SDL3.h nem Window/Renderer aqui: esses são
+// detalhes internos da engine que o jogo não precisa conhecer.
 #include "devu/core/Application.hpp"
-#include "devu/core/Color.hpp"
 
 // Namespace anônimo: dá "linkage interno" pra TheHunterGame, ou seja,
 // essa classe só existe/é visível dentro deste arquivo .cpp. Evita
@@ -11,14 +11,16 @@
 // uma classe chamada TheHunterGame em outro arquivo.
 namespace {
 
-// Por enquanto o jogo não faz nada além do que a engine já faz sozinha
-// (tela preta). Conforme a engine ganhar mais recursos (input, sprites,
-// física...), essa classe cresce com o gameplay do The Hunter.
+// Primeiro teste visual da engine: um quadrado e um círculo na tela,
+// sobre um fundo azul escuro. Conforme a engine ganhar mais recursos
+// (input, sprites, física...), essa classe cresce com o gameplay de
+// verdade do The Hunter.
 class TheHunterGame : public devu::Application {
 public:
   // Passa a configuração fixa (título "The Hunter", janela 800x600)
-  // pro construtor da classe base — é só isso que Application precisa
-  // saber antes de rodar.
+  // pro construtor da classe base. O backend de renderização não é
+  // especificado aqui, então usa o default RendererBackend::Auto — a
+  // engine escolhe o melhor driver nativo da plataforma sozinha.
   TheHunterGame() : Application("The Hunter", 800, 600) {}
 
 protected:
@@ -43,20 +45,24 @@ protected:
     // A engine já limpa a tela de preto sozinha antes de chamar
     // onDraw (ver Application::run()) — não precisa chamar nada aqui
     // pra manter o fundo preto. A linha abaixo é opcional: só existe
-    // pra SUBSTITUIR esse preto padrão por um azul claro. Comente-a
+    // pra SUBSTITUIR esse preto padrão por um azul celeste. Comente-a
     // (ou apague) pra voltar ao preto automático da engine.
-    clearBackground(135, 206, 250);
+    clearBackground(135, 206, 235);
 
-    // desenho de sprites/entidades do jogo entra aqui, DEPOIS do
-    // clearBackground — senão ficariam escondidos por baixo dele.
+    // Primeiro quadrado da engine: 150x150 pixels, canto superior
+    // esquerdo em (100, 225), vermelho. drawRectangle desenha
+    // qualquer retângulo — um quadrado é só o caso em que width ==
+    // height.
+    drawRectangle(100.0f, 225.0f, 150.0f, 150.0f);
 
-    // Desenha um retângulo branco na posição (100,100) com largura 200 e altura
-    // 150
-    drawRectangle(100, 100, 200, 150);
+    // Primeiro círculo da engine: centro em (600, 300), raio 80,
+    // verde. Se você chamar drawCircle() sem passar cor nenhuma, o
+    // default é branco (devu::Color::White()) — é a regra que você
+    // pediu.
+    drawCircle(600.0f, 300.0f, 80.0f, devu::Color::Red());
 
-    devu::Color red = {255, 99, 71};
-    // Desenha um círculo branco na posição (400,300) com raio 50
-    drawCircle(400, 300, 50, red);
+    // desenho de outras entidades do jogo entra aqui, DEPOIS do
+    // clearBackground — senão ficariam escondidas por baixo dele.
   }
 };
 

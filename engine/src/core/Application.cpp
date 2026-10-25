@@ -12,8 +12,10 @@ namespace devu {
 // chamador (ex: TheHunterGame) passa um std::string temporário
 // ("The Hunter") e a gente só "rouba" o conteúdo dele pra dentro de
 // title_, em vez de duplicar os caracteres.
-Application::Application(std::string title, int width, int height)
-    : title_(std::move(title)), width_(width), height_(height) {}
+Application::Application(std::string title, int width, int height,
+                         RendererBackend backend)
+    : title_(std::move(title)), width_(width), height_(height),
+      backend_(backend) {}
 
 // Garante que, mesmo que run() nunca tenha sido chamado (ou tenha
 // saído por uma exceção/erro), os recursos do SDL são liberados
@@ -24,153 +26,138 @@ Application::~Application() { shutdown(); }
 // false assim que algo falhar, já desfazendo (com SDL_Quit) o que já
 // tinha sido inicializado até aquele ponto.
 bool Application::init() {
-    // SDL_INIT_VIDEO liga só o subsistema de vídeo (janelas, telas,
-    // renderização) — não precisamos de áudio/joystick/etc. ainda. Em
-    // SDL3 essa função retorna bool (true = sucesso); é diferente da
-    // convenção antiga do SDL2, que retornava 0 em caso de sucesso.
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        printf("Erro ao inicializar o SDL: %s", SDL_GetError());
-        return false;
-    }
+  // SDL_INIT_VIDEO liga só o subsistema de vídeo (janelas, telas,
+  // renderização) — não precisamos de áudio/joystick/etc. ainda. Em
+  // SDL3 essa função retorna bool (true = sucesso); é diferente da
+  // convenção antiga do SDL2, que retornava 0 em caso de sucesso.
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
+    printf("Erro ao inicializar o SDL: %s", SDL_GetError());
+    return false;
+  }
 
-    // Só um log informativo com a resolução do monitor principal —
-    // não é usado pra nada além disso por enquanto (ex: não redimensiona
-    // a janela com base nisso ainda).
-    SDL_Rect displayBounds = Window::primaryDisplayBounds();
-    std::cout << "Largura: " << displayBounds.w << " pixels\n" << std::endl;
-    std::cout << "Altura: " << displayBounds.h << " pixels\n" << std::endl;
+  // Só um log informativo com a resolução do monitor principal —
+  // não é usado pra nada além disso por enquanto (ex: não redimensiona
+  // a janela com base nisso ainda).
+  SDL_Rect displayBounds = Window::primaryDisplayBounds();
+  std::cout << "Largura: " << displayBounds.w << " pixels\n" << std::endl;
+  std::cout << "Altura: " << displayBounds.h << " pixels\n" << std::endl;
 
-    // Cria a janela de verdade agora (SDL já está inicializado).
-    window_ = std::make_unique<Window>(title_, width_, height_);
-    if (!window_->isValid()) {
-        // A janela falhou: como SDL_Init tinha funcionado, precisamos
-        // desfazer isso manualmente chamando SDL_Quit antes de sair —
-        // senão o subsistema de vídeo fica "ligado" sem ninguém usar.
-        SDL_Quit();
-        return false;
-    }
+  // Cria a janela de verdade agora (SDL já está inicializado).
+  window_ = std::make_unique<Window>(title_, width_, height_);
+  if (!window_->isValid()) {
+    // A janela falhou: como SDL_Init tinha funcionado, precisamos
+    // desfazer isso manualmente chamando SDL_Quit antes de sair —
+    // senão o subsistema de vídeo fica "ligado" sem ninguém usar.
+    SDL_Quit();
+    return false;
+  }
 
-    // Cria o renderer associado à janela recém-criada.
-    renderer_ = std::make_unique<Renderer>(*window_);
-    if (!renderer_->isValid()) {
-        // Mesma lógica: desfaz o que já tinha sido criado, na ordem
-        // inversa de criação (renderer já falhou/é nulo, então só reseta
-        // a window e chama SDL_Quit).
-        window_.reset();
-        SDL_Quit();
-        return false;
-    }
+  // Cria o renderer associado à janela recém-criada, usando o backend
+  // configurado no construtor (Auto = melhor driver da plataforma).
+  renderer_ = std::make_unique<Renderer>(*window_, backend_);
+  if (!renderer_->isValid()) {
+    // Mesma lógica: desfaz o que já tinha sido criado, na ordem
+    // inversa de criação (renderer já falhou/é nulo, então só reseta
+    // a window e chama SDL_Quit).
+    window_.reset();
+    SDL_Quit();
+    return false;
+  }
 
-    // Log de debug: confirma qual driver de renderização o SDL
-    // realmente escolheu (útil pra conferir se pickPreferredDriver()
-    // conseguiu o que queria).
-    std::cout << "========================================" << std::endl;
-    std::cout << " O driver de renderizacao ativo e: "
-              << renderer_->activeDriveName() << std::endl;
-    std::cout << "========================================" << std::endl;
+  // Log de debug: confirma qual driver de renderização o SDL
+  // realmente escolheu (útil pra conferir se o backend pedido — Auto
+  // ou explícito — foi respeitado).
+  std::cout << "========================================" << std::endl;
+  std::cout << " O driver de renderizacao ativo e: "
+            << renderer_->activeDriveName() << std::endl;
+  std::cout << "========================================" << std::endl;
 
-    // Só marca como inicializado se TUDO acima deu certo — é essa flag
-    // que shutdown() usa pra saber se precisa limpar algo.
-    initialized_ = true;
-    return true;
+  // Só marca como inicializado se TUDO acima deu certo — é essa flag
+  // que shutdown() usa pra saber se precisa limpar algo.
+  initialized_ = true;
+  return true;
 }
 
 // Libera, na ordem inversa de criação, tudo que init() criou. Só faz
 // alguma coisa se initialized_ for true (ou seja, se init() realmente
 // tiver chegado ao fim com sucesso).
 void Application::shutdown() {
-    if (!initialized_) {
-        return;
-    }
-    // reset() chama o destrutor do objeto apontado (~Renderer/~Window)
-    // e zera o unique_ptr. Ordem importa: o renderer depende da janela
-    // existir, então ele é destruído primeiro, a janela por último —
-    // exatamente ao contrário da ordem em que init() os criou.
-    renderer_.reset();
-    window_.reset();
-    // Desliga todos os subsistemas do SDL que foram inicializados
-    // (nesse caso, só o de vídeo).
-    SDL_Quit();
-    initialized_ = false;
-}
-
-// Desenha um retângulo contornado na posição (x, y) com largura w e altura h.
-// A cor padrão é branca.
-void Application::drawRectangle(int x, int y, int w, int h, const Color& color) {
-    if (renderer_) {
-        renderer_->drawRectangle(x, y, w, h, color);
-    }
-}
-
-// Desenha um círculo contornado na posição (x, y) com o raio especificado.
-// A cor padrão é branca. Usa aproximação de polígono (Algoritmo de Arquimedes).
-void Application::drawCircle(int x, int y, int radius, const Color& color) {
-    if (renderer_) {
-        renderer_->drawCircle(x, y, radius, color);
-    }
+  if (!initialized_) {
+    return;
+  }
+  // reset() chama o destrutor do objeto apontado (~Renderer/~Window)
+  // e zera o unique_ptr. Ordem importa: o renderer depende da janela
+  // existir, então ele é destruído primeiro, a janela por último —
+  // exatamente ao contrário da ordem em que init() os criou.
+  renderer_.reset();
+  window_.reset();
+  // Desliga todos os subsistemas do SDL que foram inicializados
+  // (nesse caso, só o de vídeo).
+  SDL_Quit();
+  initialized_ = false;
 }
 
 // O loop principal da aplicação/jogo.
 int Application::run() {
-    if (!init()) {
-        return -1;
+  if (!init()) {
+    return -1;
+  }
+
+  // Hook pra o jogo carregar assets/estado inicial, depois que a
+  // janela e o renderer já existem.
+  onLoad();
+
+  bool running = true;
+  SDL_Event event;
+
+  while (running) {
+    // Esvazia TODOS os eventos pendentes da fila do SDL neste frame
+    // (teclado, mouse, fechar janela, etc.) — mesmo que a gente só
+    // trate um tipo de evento por enquanto.
+    while (SDL_PollEvent(&event)) {
+      // SDL_EVENT_QUIT é disparado quando o usuário clica no "X" da
+      // janela (ou manda um sinal equivalente do SO).
+      if (event.type == SDL_EVENT_QUIT) {
+        running = false;
+      }
     }
 
-    // Hook pra o jogo carregar assets/estado inicial, depois que a
-    // janela e o renderer já existem.
-    onLoad();
+    // Delta-time fixo (~16ms, aproximando 60 FPS) por enquanto — a
+    // engine ainda não mede o tempo real entre frames (isso viria de
+    // SDL_GetTicks() ou similar, guardando o timestamp do frame
+    // anterior).
+    onUpdate(0.016f);
 
-    bool running = true;
-    SDL_Event event;
+    // A engine SEMPRE limpa a tela de preto antes de chamar onDraw —
+    // esse é o comportamento padrão, igual já era antes de
+    // clearBackground() existir. Se o jogo não fizer nada em onDraw(),
+    // o fundo continua preto.
+    clearBackground(0, 0, 0, 255);
 
-    while (running) {
-        // Esvazia TODOS os eventos pendentes da fila do SDL neste frame
-        // (teclado, mouse, fechar janela, etc.) — mesmo que a gente só
-        // trate um tipo de evento por enquanto.
-        while (SDL_PollEvent(&event)) {
-            // SDL_EVENT_QUIT é disparado quando o usuário clica no "X" da
-            // janela (ou manda um sinal equivalente do SO).
-            if (event.type == SDL_EVENT_QUIT) {
-                running = false;
-            }
-        }
+    // Hook pra o jogo desenhar o frame atual. Se o jogo quiser um
+    // fundo de outra cor, é só chamar clearBackground(r, g, b) de novo
+    // aqui dentro (normalmente como a primeira linha) — essa segunda
+    // chamada substitui o preto que acabamos de aplicar acima. Chamar
+    // duas vezes por frame (uma aqui, outra dentro de onDraw) tem um
+    // custo desprezível: SDL_RenderClear é uma operação bem barata.
 
-        // Delta-time fixo (~16ms, aproximando 60 FPS) por enquanto — a
-        // engine ainda não mede o tempo real entre frames (isso viria de
-        // SDL_GetTicks() ou similar, guardando o timestamp do frame
-        // anterior).
-        onUpdate(0.016f);
+    onDraw();
 
-        // A engine SEMPRE limpa a tela de preto antes de chamar onDraw —
-        // esse é o comportamento padrão, igual já era antes de
-        // clearBackground() existir. Se o jogo não fizer nada em onDraw(),
-        // o fundo continua preto.
-        clearBackground(0, 0, 0, 255);
+    // "Apresenta" o frame: troca o buffer que acabamos de desenhar
+    // pelo que está sendo mostrado na tela (double buffering).
+    SDL_RenderPresent(rendererHandle());
+    // Limitador de frame rate bem simples: só espera 16ms fixos, não
+    // é um vsync/timing preciso, mas evita que o loop rode a 100% de
+    // CPU sem necessidade.
+    SDL_Delay(16);
+  }
 
-        // Hook pra o jogo desenhar o frame atual. Se o jogo quiser um
-        // fundo de outra cor, é só chamar clearBackground(r, g, b) de novo
-        // aqui dentro (normalmente como a primeira linha) — essa segunda
-        // chamada substitui o preto que acabamos de aplicar acima. Chamar
-        // duas vezes por frame (uma aqui, outra dentro de onDraw) tem um
-        // custo desprezível: SDL_RenderClear é uma operação bem barata.
-
-        onDraw();
-
-        // "Apresenta" o frame: troca o buffer que acabamos de desenhar
-        // pelo que está sendo mostrado na tela (double buffering).
-        SDL_RenderPresent(rendererHandle());
-        // Limitador de frame rate bem simples: só espera 16ms fixos, não
-        // é um vsync/timing preciso, mas evita que o loop rode a 100% de
-        // CPU sem necessidade.
-        SDL_Delay(16);
-    }
-
-    // Libera janela/renderer/SDL assim que o loop termina (janela
-    // fechada), antes mesmo do objeto Application ser destruído — o
-    // destrutor chama shutdown() de novo depois, mas como initialized_
-    // já é false nesse ponto, essa segunda chamada não faz nada.
-    shutdown();
-    return 0;
+  // Libera janela/renderer/SDL assim que o loop termina (janela
+  // fechada), antes mesmo do objeto Application ser destruído — o
+  // destrutor chama shutdown() de novo depois, mas como initialized_
+  // já é false nesse ponto, essa segunda chamada não faz nada.
+  shutdown();
+  return 0;
 }
 
 } // namespace devu

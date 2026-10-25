@@ -1,8 +1,8 @@
 #pragma once
 
+#include "devu/core/Color.hpp"
 #include "devu/core/Renderer.hpp"
 #include "devu/core/Window.hpp"
-#include "devu/core/Color.hpp"
 
 #include <SDL3/SDL.h>
 // unique_ptr: Window e Renderer só podem ser construídos DEPOIS de
@@ -19,8 +19,8 @@ namespace devu {
 // Classe base da engine. Cada jogo herda de Application e sobrescreve
 // onLoad/onUpdate/onDraw; o loop principal (init do SDL, criação de
 // janela/renderer, poll de eventos, present, shutdown) mora aqui, não
-// no jogo. Ainda sem ECS nem renderizador Vulkan próprio — isso aqui é
-// só a separação inicial do que estava direto no main.cpp.
+// no jogo. Ainda sem ECS próprio — isso aqui é só a separação inicial
+// do que estava direto no main.cpp, mais as primitivas de desenho.
 //
 // Esse é o padrão "template method": a classe base define o ESQUELETO
 // do loop (a ordem: eventos -> update -> clear -> draw -> present), e
@@ -28,9 +28,14 @@ namespace devu {
 // onDraw) com a lógica específica de cada jogo.
 class Application {
 public:
-  // Só guarda a configuração (título e tamanho da janela); NÃO cria
-  // nada do SDL ainda — isso só acontece dentro de run(), via init().
-  Application(std::string title, int width, int height);
+  // Só guarda a configuração (título, tamanho da janela e qual backend
+  // de renderização usar); NÃO cria nada do SDL ainda — isso só
+  // acontece dentro de run(), via init(). "backend" default é Auto
+  // (deixa a engine escolher o melhor driver da plataforma); um jogo
+  // pode passar RendererBackend::Vulkan (ou outro) pra forçar um
+  // driver específico.
+  Application(std::string title, int width, int height,
+              RendererBackend backend = RendererBackend::Auto);
   // "virtual" é essencial aqui: quando um TheHunterGame (por exemplo)
   // é destruído através de um ponteiro pra Application, o destrutor
   // virtual garante que o destrutor de TheHunterGame também rode, não
@@ -51,30 +56,23 @@ public:
   int run();
 
 protected:
-    // "protected" porque só as subclasses (os jogos) devem chamar/
-    // sobrescrever esses métodos — código de fora da hierarquia de
-    // Application não deveria mexer neles diretamente.
+  // "protected" porque só as subclasses (os jogos) devem chamar/
+  // sobrescrever esses métodos — código de fora da hierarquia de
+  // Application não deveria mexer neles diretamente.
 
-    // Chamado uma vez, antes do primeiro frame.
-    virtual void onLoad() {}
-    // Chamado uma vez por frame, antes do clear/draw. deltaSeconds ainda
-    // é fixo (~16ms via SDL_Delay); a assinatura já fica pronta pra
-    // quando isso virar delta-time real.
-    virtual void onUpdate(float deltaSeconds) { (void)deltaSeconds; }
-    // Chamado uma vez por frame, antes do present. A engine já limpa a
-    // tela de preto automaticamente ANTES de chamar onDraw (ver
-    // Application::run()) — se o jogo não fizer nada aqui, o fundo
-    // continua preto. Pra outra cor, chame clearBackground() como
-    // primeira linha de onDraw e depois desenhe suas entidades por cima.
-    virtual void onDraw() {}
-
-    // Desenha um retângulo contornado na posição (x, y) com largura w e altura h.
-    // A cor padrão é branca.
-    void drawRectangle(int x, int y, int w, int h, const Color& color = Color());
-
-    // Desenha um círculo contornado na posição (x, y) com o raio especificado.
-    // A cor padrão é branca. Usa aproximação de polígono (Algoritmo de Arquimedes).
-    void drawCircle(int x, int y, int radius, const Color& color = Color());
+  // Chamado uma vez, antes do primeiro frame.
+  virtual void onLoad() {}
+  // Chamado uma vez por frame, antes do clear/draw. deltaSeconds ainda
+  // é fixo (~16ms via SDL_Delay); a assinatura já fica pronta pra
+  // quando isso virar delta-time real.
+  virtual void onUpdate(float deltaSeconds) { (void)deltaSeconds; }
+  // Chamado uma vez por frame, antes do present. A engine já limpa a
+  // tela de preto automaticamente ANTES de chamar onDraw (ver
+  // Application::run()) — se o jogo não fizer nada aqui, o fundo
+  // continua preto. Pra outra cor, chame clearBackground() como
+  // primeira linha de onDraw, e depois use drawRectangle()/
+  // drawCircle() pra desenhar suas entidades por cima.
+  virtual void onDraw() {}
 
   // Troca a cor do "pincel" do renderer e já limpa a tela inteira com
   // ela — é a forma recomendada de pintar o fundo do frame com uma
@@ -91,9 +89,30 @@ protected:
     }
   }
 
+  // Desenha um retângulo — repassa direto pro Renderer (ver
+  // Renderer::drawRectangle para os detalhes de x/y/width/height).
+  // "color" default é branco se você não passar nenhuma cor.
+  void drawRectangle(float x, float y, float width, float height,
+                     Color color = Color::White(), bool filled = true) {
+    if (renderer_) {
+      renderer_->drawRectangle(x, y, width, height, color, filled);
+    }
+  }
+
+  // Desenha um círculo — repassa direto pro Renderer (ver
+  // Renderer::drawCircle para a explicação do método de Arquimedes
+  // usado pra aproximar a circunferência por um polígono). "color"
+  // default é branco se você não passar nenhuma cor.
+  void drawCircle(float centerX, float centerY, float radius,
+                  Color color = Color::White(), bool filled = true) {
+    if (renderer_) {
+      renderer_->drawCircle(centerX, centerY, radius, color, filled);
+    }
+  }
+
   // Dá acesso ao SDL_Renderer* cru pra quem herdar de Application e
-  // precisar desenhar algo dentro de onDraw() (ex: SDL_RenderRect,
-  // SDL_RenderTexture...). Retorna nullptr se o renderer ainda não
+  // precisar de alguma chamada do SDL que a engine ainda não expõe
+  // como método próprio. Retorna nullptr se o renderer ainda não
   // existir (antes de init() rodar).
   SDL_Renderer *rendererHandle() const {
     return renderer_ ? renderer_->handle() : nullptr;
@@ -107,10 +126,11 @@ private:
   void shutdown();
 
   // Configuração guardada no construtor, usada só depois dentro de
-  // init() pra criar a Window de fato.
+  // init() pra criar a Window/Renderer de fato.
   std::string title_;
   int width_;
   int height_;
+  RendererBackend backend_;
 
   // Ver comentário do #include <memory> acima: construídos
   // manualmente dentro de init(), não no momento em que Application é
