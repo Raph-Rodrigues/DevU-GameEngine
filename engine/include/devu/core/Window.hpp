@@ -47,6 +47,15 @@ public:
   // true se a criação da janela deu certo (window_ != nullptr).
   bool isValid() const { return window_ != nullptr; }
 
+  // Tamanho ATUAL da janela em pixels — não o valor inicial pedido no
+  // construtor, mas o que o SDL relata agora (se a janela for
+  // redimensionada — lembra que ela é SDL_WINDOW_RESIZABLE — esses
+  // valores acompanham). Retornam 0 se a janela não existir ainda.
+  // Isso é o tamanho da JANELA, diferente de primaryDisplayBounds()
+  // abaixo, que consulta o MONITOR inteiro do sistema.
+  int width() const;
+  int height() const;
+
   // Método estático: não depende de nenhuma instância de Window (não
   // usa window_), só consulta informação global do sistema (monitores
   // conectados). Por isso pode ser chamado como Window::primaryDisplayBounds()

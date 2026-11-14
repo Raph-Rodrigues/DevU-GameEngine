@@ -49,16 +49,44 @@ protected:
     // (ou apague) pra voltar ao preto automático da engine.
     clearBackground(135, 206, 235);
 
+    // --- Cenário da fase (chão, parede e duas plataformas) ---
+    // Desenhado ANTES do quadrado/círculo de propósito: eles ficam
+    // "na frente" do cenário em vez de escondidos atrás dele — o
+    // mesmo motivo pelo qual clearBackground vem antes de tudo.
+    //
+    // screenWidth()/screenHeight() consultam o tamanho ATUAL da
+    // janela (hoje 800x600) em vez de números fixos escritos na mão —
+    // se a janela for redimensionada no futuro, o cenário acompanha
+    // sozinho.
+    const float screenW = screenWidth();
+    const float screenH = screenHeight();
+
+    // Chão: uma faixa marrom cobrindo toda a largura da tela, colada
+    // no fundo.
+    constexpr float kFloorHeight = 40.0f;
+    drawRectangle(0.0f, screenH - kFloorHeight, screenW, kFloorHeight,
+                  devu::Color::Brown());
+
+    // Parede: uma faixa cinza vertical na borda direita da tela, do
+    // topo até o chão.
+    constexpr float kWallWidth = 30.0f;
+    drawRectangle(screenW - kWallWidth, 0.0f, kWallWidth,
+                  screenH - kFloorHeight, devu::Color::Gray());
+
+    // Duas plataformas flutuantes (mesmo tom de pedra da parede),
+    // posicionadas pra não encostar no quadrado nem no círculo: uma
+    // mais baixa à esquerda, outra mais alta à direita.
+    drawRectangle(300.0f, 450.0f, 160.0f, 25.0f, devu::Color::Gray());
+    drawRectangle(550.0f, 150.0f, 150.0f, 25.0f, devu::Color::Gray());
+
+    // --- Quadrado e círculo (mantidos exatamente como estavam) ---
     // Primeiro quadrado da engine: 150x150 pixels, canto superior
-    // esquerdo em (100, 225), vermelho. drawRectangle desenha
-    // qualquer retângulo — um quadrado é só o caso em que width ==
-    // height.
+    // esquerdo em (100, 225). Sem cor explícita, então usa o branco
+    // padrão (devu::Color::White()) — a regra que você pediu.
     drawRectangle(100.0f, 225.0f, 150.0f, 150.0f);
 
     // Primeiro círculo da engine: centro em (600, 300), raio 80,
-    // verde. Se você chamar drawCircle() sem passar cor nenhuma, o
-    // default é branco (devu::Color::White()) — é a regra que você
-    // pediu.
+    // vermelho.
     drawCircle(600.0f, 300.0f, 80.0f, devu::Color::Red());
 
     // desenho de outras entidades do jogo entra aqui, DEPOIS do

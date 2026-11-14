@@ -110,6 +110,24 @@ protected:
     }
   }
 
+  // Largura/altura ATUAIS da janela (a área jogável), em pixels — pra
+  // usar na hora de posicionar cenário (chão, paredes, plataformas)
+  // relativo ao tamanho real da tela, em vez de espalhar números fixos
+  // pelo jogo. Repassam direto pra Window::width()/height(), então já
+  // acompanham se a janela for redimensionada no futuro. Retornam 0
+  // se a janela ainda não existir (não deveria acontecer dentro de
+  // onLoad/onUpdate/onDraw, só antes de init() rodar).
+  //
+  // Importante: isso é o tamanho da JANELA do jogo, não da tela FÍSICA
+  // do monitor do usuário — pra isso (só usado hoje em log/debug),
+  // existe Window::primaryDisplayBounds().
+  float screenWidth() const {
+    return window_ ? static_cast<float>(window_->width()) : 0.0f;
+  }
+  float screenHeight() const {
+    return window_ ? static_cast<float>(window_->height()) : 0.0f;
+  }
+
   // Dá acesso ao SDL_Renderer* cru pra quem herdar de Application e
   // precisar de alguma chamada do SDL que a engine ainda não expõe
   // como método próprio. Retorna nullptr se o renderer ainda não

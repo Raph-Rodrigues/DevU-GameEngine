@@ -31,6 +31,25 @@ Window::~Window() {
   }
 }
 
+int Window::width() const {
+  int w = 0, h = 0;
+  if (window_) {
+    // SDL_GetWindowSize preenche w/h com o tamanho ATUAL da área de
+    // desenho da janela (em pixels). A gente ignora o "h" aqui e só
+    // devolve "w" — height() faz o inverso logo abaixo.
+    SDL_GetWindowSize(window_, &w, &h);
+  }
+  return w;
+}
+
+int Window::height() const {
+  int w = 0, h = 0;
+  if (window_) {
+    SDL_GetWindowSize(window_, &w, &h);
+  }
+  return h;
+}
+
 SDL_Rect Window::primaryDisplayBounds() {
   int numDisplays = 0;
   // SDL_GetDisplays aloca (internamente) um array de IDs de monitor e

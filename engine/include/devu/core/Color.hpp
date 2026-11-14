@@ -39,6 +39,10 @@ struct Color {
   static constexpr Color Red() { return Color{255, 0, 0, 255}; }
   static constexpr Color Green() { return Color{0, 255, 0, 255}; }
   static constexpr Color Blue() { return Color{0, 0, 255, 255}; }
+  // As duas de baixo entraram pra construção de cenário: tom de terra
+  // pra chão e tom de pedra pra plataformas/paredes.
+  static constexpr Color Brown() { return Color{139, 69, 19, 255}; }
+  static constexpr Color Gray() { return Color{128, 128, 128, 255}; }
 };
 
 } // namespace devu
