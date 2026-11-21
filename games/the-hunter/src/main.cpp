@@ -1,9 +1,12 @@
-// Único header da engine que o jogo precisa incluir diretamente — tudo
-// que o jogo faz é através da API pública de Application (onLoad/
-// onUpdate/onDraw/run, clearBackground/drawRectangle/drawCircle) e do
-// tipo Color. Nada de SDL3.h nem Window/Renderer aqui: esses são
-// detalhes internos da engine que o jogo não precisa conhecer.
+// Header principal da engine (Application, clearBackground/
+// drawRectangle/drawCircle, Color...) mais os utilitários de
+// matemática e física: Vector2, clamp e AABB. Nada de SDL3.h nem
+// Window/Renderer aqui: esses são detalhes internos da engine que o
+// jogo não precisa conhecer.
 #include "devu/core/Application.hpp"
+#include "devu/math/Vector2.hpp"
+#include "devu/math/mathUtils.hpp"
+#include "devu/physics/AABB.hpp"
 
 // Namespace anônimo: dá "linkage interno" pra TheHunterGame, ou seja,
 // essa classe só existe/é visível dentro deste arquivo .cpp. Evita
@@ -11,10 +14,11 @@
 // uma classe chamada TheHunterGame em outro arquivo.
 namespace {
 
-// Primeiro teste visual da engine: um quadrado e um círculo na tela,
-// sobre um fundo azul escuro. Conforme a engine ganhar mais recursos
-// (input, sprites, física...), essa classe cresce com o gameplay de
-// verdade do The Hunter.
+// Primeiro teste visual da engine: cenário simples (chão, parede e
+// plataformas) com um quadrado parado e um círculo que anda na
+// horizontal, quicando nas bordas da tela e no quadrado. Conforme a
+// engine ganhar mais recursos (input, sprites, mais colisões...),
+// essa classe cresce com o gameplay de verdade do The Hunter.
 class TheHunterGame : public devu::Application {
 public:
   // Passa a configuração fixa (título "The Hunter", janela 800x600)
@@ -34,11 +38,57 @@ protected:
   }
 
   void onUpdate(float deltaSeconds) override {
-    // (void)deltaSeconds silencia o warning de "parâmetro não usado",
-    // já que por enquanto não há nenhuma lógica de gameplay que
-    // dependa do tempo entre frames.
-    (void)deltaSeconds;
-    // lógica de gameplay entra aqui
+    // Integração de Euler: nova posição = posição + velocidade * dt.
+    // Com a velocidade em pixels por segundo e dt em segundos, o
+    // produto já sai em pixels.
+    circlePosition_ += circleVelocity_ * deltaSeconds;
+
+    // --- Colisão com os limites da tela ---
+    // Limites horizontais do CENTRO do círculo: a borda esquerda do
+    // círculo (centro - raio) não pode passar de 0, e a direita
+    // (centro + raio) não pode passar da largura da tela. Por isso o
+    // centro fica entre [raio, largura - raio]. screenWidth() é lida
+    // a cada frame, então se a janela for redimensionada o limite
+    // acompanha.
+    const float minX = kCircleRadius;
+    const float maxX = screenWidth() - kCircleRadius;
+
+    // clamp "puxa de volta" o centro pra dentro do intervalo. Se o
+    // círculo andou além do limite neste frame, clampedX vem
+    // diferente de circlePosition_.x (comparação exata de floats é
+    // segura: clamp devolve o valor idêntico quando está dentro).
+    const float clampedX = devu::clamp(circlePosition_.x, minX, maxX);
+    if (clampedX != circlePosition_.x) {
+      // Bateu no limite: corrige a posição pra exatamente a borda e
+      // inverte o sentido da velocidade horizontal ("retorna").
+      circlePosition_.x = clampedX;
+      circleVelocity_.x = -circleVelocity_.x;
+    }
+
+    // --- Colisão AABB com o quadrado branco ---
+    // Monta as duas caixas deste frame. A do círculo é a caixa que o
+    // envolve (centro +- raio nos dois eixos); a do quadrado vem do
+    // mesmo canto/tamanho usados no desenho.
+    const devu::AABB circleBox =
+        devu::AABB::fromCenter(circlePosition_, kCircleRadius, kCircleRadius);
+    const devu::AABB squareBox = devu::AABB::fromRect(
+        kSquarePosition.x, kSquarePosition.y, kSquareSize, kSquareSize);
+
+    if (devu::aabbIntersects(circleBox, squareBox)) {
+      // Colidiu: pega o menor deslocamento que tira o círculo de
+      // dentro do quadrado e aplica na posição...
+      const devu::Vector2 push = devu::aabbPenetration(circleBox, squareBox);
+      circlePosition_ += push;
+
+      // ...e inverte a velocidade no eixo em que foi empurrado (se o
+      // empurrão foi horizontal, só x inverte; se foi vertical, só y).
+      if (push.x != 0.0f) {
+        circleVelocity_.x = -circleVelocity_.x;
+      }
+      if (push.y != 0.0f) {
+        circleVelocity_.y = -circleVelocity_.y;
+      }
+    }
   }
 
   void onDraw() override {
@@ -73,25 +123,44 @@ protected:
     drawRectangle(screenW - kWallWidth, 0.0f, kWallWidth,
                   screenH - kFloorHeight, devu::Color::Gray());
 
-    // Duas plataformas flutuantes (mesmo tom de pedra da parede),
-    // posicionadas pra não encostar no quadrado nem no círculo: uma
-    // mais baixa à esquerda, outra mais alta à direita.
+    // Duas plataformas flutuantes (mesmo tom de pedra da parede):
+    // uma mais baixa à esquerda, outra mais alta à direita.
     drawRectangle(300.0f, 450.0f, 160.0f, 25.0f, devu::Color::Gray());
     drawRectangle(550.0f, 150.0f, 150.0f, 25.0f, devu::Color::Gray());
 
-    // --- Quadrado e círculo (mantidos exatamente como estavam) ---
-    // Primeiro quadrado da engine: 150x150 pixels, canto superior
-    // esquerdo em (100, 225). Sem cor explícita, então usa o branco
-    // padrão (devu::Color::White()) — a regra que você pediu.
-    drawRectangle(100.0f, 225.0f, 150.0f, 150.0f);
+    // --- Quadrado e círculo ---
+    // Quadrado branco (cor padrão, sem cor explícita), na posição e
+    // tamanho definidos pelas constantes da classe — as mesmas usadas
+    // na colisão, então o que você vê é exatamente o que colide.
+    drawRectangle(kSquarePosition.x, kSquarePosition.y, kSquareSize,
+                  kSquareSize);
 
-    // Primeiro círculo da engine: centro em (600, 300), raio 80,
-    // vermelho.
-    drawCircle(600.0f, 300.0f, 80.0f, devu::Color::Red());
+    // Círculo vermelho, na posição atualizada por onUpdate a cada
+    // frame (começa em (600, 300)).
+    drawCircle(circlePosition_.x, circlePosition_.y, kCircleRadius,
+               devu::Color::Red());
 
     // desenho de outras entidades do jogo entra aqui, DEPOIS do
     // clearBackground — senão ficariam escondidas por baixo dele.
   }
+
+private:
+  // Raio do círculo, usado pra desenhar, pro quique na tela e pra caixa
+  // de colisão.
+  static constexpr float kCircleRadius = 80.0f;
+
+  // Canto superior esquerdo e lado do quadrado branco (150x150 em
+  // (100, 225), como sempre foi). Ficam em constantes únicas pra
+  // desenho e colisão nunca ficarem fora de sincronia.
+  static constexpr devu::Vector2 kSquarePosition{100.0f, 225.0f};
+  static constexpr float kSquareSize = 150.0f;
+
+  // Posição do CENTRO do círculo, em pixels.
+  devu::Vector2 circlePosition_{600.0f, 300.0f};
+
+  // Velocidade em pixels por segundo: 200 px/s pra direita, nenhuma
+  // componente vertical (movimento puramente horizontal por enquanto).
+  devu::Vector2 circleVelocity_{200.0f, 0.0f};
 };
 
 } // namespace
